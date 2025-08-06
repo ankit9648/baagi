@@ -1,0 +1,11 @@
+# vars.py
+
+API_ID = 123456
+API_HASH = "your_api_hash_here"
+OWNER_ID = 123456789  # Telegram Numeric ID
+
+# Dummy/placeholder - You **must** replace this if actual Classplus token required
+CLASPLUS_TOKEN = "paste_your_classplus_token_here"  
+
+DOWNLOAD_DIR = "downloads"
+DEFAULT_RESOLUTION = "best"  # "360", "480", "720", "1080", or "best"

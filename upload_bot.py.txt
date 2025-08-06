@@ -1,0 +1,11 @@
+import os
+import time
+
+def upload_with_status(bot, chat_id, video_path, caption):
+    total = os.path.getsize(video_path)
+    start_time = time.time()
+    with open(video_path, 'rb') as f:
+        bot.send_video(chat_id=chat_id, video=f, caption=caption, supports_streaming=True)
+    duration = time.time() - start_time
+    speed = total / duration / (1024*1024)
+    return duration, speed

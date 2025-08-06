@@ -1,0 +1,63 @@
+import os
+from vars import OWNER_ID, DOWNLOAD_DIR, DEFAULT_RESOLUTION
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")   # Bot token, server/env se lega
+from downloader.download_video import download_video
+from uploader.upload_bot import upload_with_status
+
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Hi! Use /drm and send .txt with m3u8 link. You can add /drm 480 for 480p, /drm best for best quality.")
+
+async def drm_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    args = context.args
+    res = args[0] if args else DEFAULT_RESOLUTION
+    context.user_data['resolution'] = res
+    await update.message.reply_text(f"📄 Now send your .txt file with m3u8 link. Selected resolution: {res}p.")
+
+async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.document:
+        return
+
+    user = update.effective_user.id
+    if user != OWNER_ID:
+        await update.message.reply_text("🚫 You are not authorized!")
+        return
+
+    res = context.user_data.get('resolution', DEFAULT_RESOLUTION)
+
+    file = await update.message.document.get_file()
+    safe_path = os.path.join(DOWNLOAD_DIR, f"{update.message.document.file_name}")
+    await file.download_to_drive(safe_path)
+    with open(safe_path, 'r') as f:
+        m3u8_url = f.read().strip()
+    video_name = os.path.splitext(update.message.document.file_name)[0] + f"_{res}.mp4"
+    video_path = os.path.join(DOWNLOAD_DIR, video_name)
+
+    await update.message.reply_text(f"⏬ Downloading `{video_name}` at {res}p ...")
+    size_mb, speed_dl = download_video(m3u8_url, video_path, resolution=res)
+    if size_mb is None:
+        await update.message.reply_text("❌ Download failed!")
+        return
+
+    await update.message.reply_text(f"✅ Downloaded: {video_name}\nSize: {size_mb:.2f} MB\nSpeed: {speed_dl:.2f} MB/s\n⏫ Uploading...")
+    from telegram import Bot
+    bot = Bot(BOT_TOKEN)
+    duration, speed_ul = upload_with_status(bot, OWNER_ID, video_path, f"🎥 `{video_name}`")
+    await update.message.reply_text(f"✅ Uploaded!\nUpload time: {duration:.1f}s\nUpload speed: {speed_ul:.2f} MB/s")
+    os.remove(video_path)
+    os.remove(safe_path)
+
+def main():
+    app = ApplicationBuilder().token(os.environ['BOT_TOKEN']).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("drm", drm_command))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
